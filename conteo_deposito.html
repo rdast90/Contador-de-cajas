@@ -346,27 +346,48 @@ header span { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: #
   background: var(--white);
   border: 1px solid var(--border);
   border-radius: 6px;
-  padding: 14px;
-  margin-bottom: 10px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+.resumen-model-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
 }
 .resumen-model-name {
   font-family: 'Playfair Display', serif;
   font-size: 14px;
   font-weight: 600;
-  margin-bottom: 8px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
 }
-.resumen-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 4px 0;
-  font-size: 13px;
-}
-.resumen-qty {
+.resumen-model-total {
   font-family: 'IBM Plex Mono', monospace;
+  font-size: 13px;
   font-weight: 500;
+  color: var(--blue);
+}
+.resumen-color-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.resumen-color-cell {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--cream);
+  border-radius: 4px;
+  padding: 4px 8px 4px 4px;
+  flex: 1;
+  min-width: calc(33% - 4px);
+  max-width: calc(33% - 4px);
+}
+.resumen-color-qty {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink);
+  white-space: nowrap;
 }
 .total-banner {
   background: var(--ink);
@@ -563,18 +584,34 @@ const KEYS = {
   ocultos:  'dep_ocultos',
 };
 
+// Paquetes por defecto para cada modelo|color
+const DEFAULT_PKGS = {
+  'Redondas|Blanco': [12], 'Redondas|Negro': [12], 'Redondas|Rosado': [12],
+  'Redondas|Beige': [12], 'Redondas|Dorado': [12], 'Redondas|Azul': [12],
+  'Redondas Grandes|Blanco': [12], 'Redondas Grandes|Negro': [12],
+  'Redondas Grandes|Rosado': [12], 'Redondas Grandes|Beige': [12],
+  'Cuadradas|Blanco': [18], 'Cuadradas|Negro': [18], 'Cuadradas|Rosado': [18],
+  'Cuadradas Grandes|Blanco': [6],
+  'Sombrereras|Blanco': [6], 'Sombrereras|Negro': [6],
+  'Sombrereras Grandes|Blanco': [4],
+  'Corazón|Blanco': [10], 'Corazón|Negro': [10],
+  'Corazón Grande|Negro': [6],
+  'Cartera|Negro': [4], 'Cartera|Rosado': [4],
+};
+
 function load(k, def) {
   try { return JSON.parse(localStorage.getItem(k)) || def; } catch { return def; }
 }
 function save(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
 
-// conteo: { "Redondas|Blanco": { unidades: 0, paquetes: {pkgSize: qty, ...} } }
-// config: { "Redondas|Blanco": [ 10, 25, ... ] }   (lista de tamaños de paquete)
-// fotos:  { "Redondas": [ "data:image/..." ] }
-// ocultos: [ "Redondas", ... ]
-
 function getConteo() { return load(KEYS.conteo, {}); }
-function getConfig() { return load(KEYS.config, {}); }
+function getConfig() {
+  const stored = load(KEYS.config, null);
+  if (stored) return stored;
+  // Primera vez: sembrar defaults
+  save(KEYS.config, DEFAULT_PKGS);
+  return { ...DEFAULT_PKGS };
+}
 function getFotos()  { return load(KEYS.fotos, {}); }
 function getOcultos(){ return load(KEYS.ocultos, []); }
 
@@ -813,7 +850,6 @@ function deleteCurrentPhoto() {
 
 // ── RESUMEN ───────────────────────────────────────────────────────────────
 function renderResumen() {
-  const conteo = getConteo();
   const grand = MODELOS.reduce((s, m) => s + getModelTotal(m.nombre), 0);
 
   if (grand === 0) {
@@ -829,18 +865,27 @@ function renderResumen() {
   MODELOS.forEach(m => {
     const mt = getModelTotal(m.nombre);
     if (mt === 0) return;
-    let rowsHtml = '';
-    m.colores.forEach(color => {
+
+    // Solo colores con conteo > 0
+    const activeColors = m.colores.filter(c => getTotal(m.nombre, c) > 0);
+
+    // Agrupar en filas de máximo 3
+    let colorGridHtml = '<div class="resumen-color-grid">';
+    activeColors.forEach(color => {
       const t = getTotal(m.nombre, color);
-      if (t === 0) return;
-      rowsHtml += `<div class="resumen-row">
-        <span>${colorPill(color)}</span>
-        <span class="resumen-qty">${t} uds</span>
+      colorGridHtml += `<div class="resumen-color-cell">
+        ${colorPill(color)}
+        <span class="resumen-color-qty">${t}</span>
       </div>`;
     });
+    colorGridHtml += '</div>';
+
     html += `<div class="resumen-card">
-      <div class="resumen-model-name">${m.nombre} — <span style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--blue)">${mt} uds</span></div>
-      ${rowsHtml}
+      <div class="resumen-model-row">
+        <span class="resumen-model-name">${m.nombre}</span>
+        <span class="resumen-model-total">${mt} uds</span>
+      </div>
+      ${colorGridHtml}
     </div>`;
   });
 
